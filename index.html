@@ -114,11 +114,15 @@
                 // Gerätesuche über Web Bluetooth API
                 // GEÄNDERT: Filtert jetzt nach der Service-UUID statt dem Namen.
                 // Das ist robuster und öffnet den Auswahl-Dialog (die "Gerätesuche").
+                //
+                // ÄNDERUNG (Plan B): Wir filtern wieder nach dem Namen, da der Service
+                // anscheinend nicht advertised wird.
                 bleDevice = await navigator.bluetooth.requestDevice({
                     filters: [{
-                        services: [ATOMTUBE_SERVICE_UUID]
+                        // services: [ATOMTUBE_SERVICE_UUID] // Plan A (funktioniert nicht)
+                        namePrefix: 'AtmoTube' // Plan B: Suche nach dem Gerätenamen
                     }],
-                    optionalServices: [ATOMTUBE_SERVICE_UUID] // Fordert Zugriff auf den Service an
+                    optionalServices: [ATOMTUBE_SERVICE_UUID] // WICHTIG: Fordert Zugriff auf den Service an
                 });
 
                 statusText.innerText = 'Verbinde mit GATT-Server...';
