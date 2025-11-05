@@ -60,12 +60,12 @@
         // const ATOMTUBE_SERVICE_UUID = 'dein-service-uuid-hier'; // z.B. '0000xxxx-0000-1000-8000-00805f9b34fb'
         // const ATOMTUBE_DATA_CHAR_UUID = 'dein-characteristic-uuid-hier'; // z.B. '0000yyyy-0000-1000-8000-00805f9b34fb'
         
-        // --- UUIDs basierend auf der AtmoTube-Dokumentation ---
-        const ATOMTUBE_SERVICE_UUID = '0000aaaa-5975-4872-6E4D-69636861656C';
-        const PM_CHAR_UUID = '0000aa01-5975-4872-6E4D-69636861656C';
-        const VOC_CO2_CHAR_UUID = '0000aa02-5975-4872-6E4D-69636861656C';
-        const TEMP_HUM_CHAR_UUID = '0000aa03-5975-4872-6E4D-69636861656C';
-        const PRESSURE_CHAR_UUID = '0000aa04-5975-4872-6E4D-69636861656C';
+        // --- UUIDs basierend auf der AtmoTube-Dokumentation (JETZT KLEINGESCHRIEBEN) ---
+        const ATOMTUBE_SERVICE_UUID = '0000aaaa-5975-4872-6e4d-69636861656c';
+        const PM_CHAR_UUID = '0000aa01-5975-4872-6e4d-69636861656c';
+        const VOC_CO2_CHAR_UUID = '0000aa02-5975-4872-6e4d-69636861656c';
+        const TEMP_HUM_CHAR_UUID = '0000aa03-5975-4872-6e4d-69636861656c';
+        const PRESSURE_CHAR_UUID = '0000aa04-5975-4872-6e4d-69636861656c';
         // --- ENDE ANPASSUNG ---
 
         // DOM-Elemente
@@ -112,9 +112,12 @@
                 statusText.innerText = 'Suche Gerät...';
                 
                 // Gerätesuche über Web Bluetooth API
+                // GEÄNDERT: Filtert jetzt nach der Service-UUID statt dem Namen.
+                // Das ist robuster und öffnet den Auswahl-Dialog (die "Gerätesuche").
                 bleDevice = await navigator.bluetooth.requestDevice({
-                    // Filtere nach dem Namen ODER dem Service
-                    filters: [{ namePrefix: 'AtmoTube' }], // Versucht, Geräte mit Namen "AtmoTube" zu finden
+                    filters: [{
+                        services: [ATOMTUBE_SERVICE_UUID]
+                    }],
                     optionalServices: [ATOMTUBE_SERVICE_UUID] // Fordert Zugriff auf den Service an
                 });
 
@@ -306,7 +309,7 @@
             timestamp,
             `${currentAtmoTubeData.pm1 ?? 'N/A'}`,
             `${currentAtmoTubeData.pm25 ?? 'N/A'}`,
-            `${currentAtmsoTubeData.pm10 ?? 'N/A'}`,
+            `${currentAtmoTubeData.pm10 ?? 'N/A'}`, // TYPO-FIX: currentAtmsoTubeData -> currentAtmoTubeData
             `${currentAtmoTubeData.voc ?? 'N/A'}`,
             `${currentAtmoTubeData.co2 ?? 'N/A'}`,
             `${currentAtmoTubeData.temp ?? 'N/A'}`,
