@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AtmoTube Logger</title>
+    <!-- Nutzung von Tailwind CSS für ein sauberes Design -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Zusätzliches Styling für einen "pulsierenden" Effekt während der Messung */
+        .is-measuring {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: .5;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans">
+
+    <div class="container mx-auto max-w-md mt-10 p-6 bg-white rounded-lg shadow-xl">
+        <header class="text-center mb-6">
+            <h1 class="text-3xl font-bold text-gray-800">AtmoTube Logger</h1>
+            <p id="status-text" class="text-lg text-gray-600 mt-2">Status: Nicht verbunden</p>
+        </header>
+
+        <main>
+            <!-- Kontroll-Buttons -->
+            <div class="flex flex-col space-y-4">
+                <button id="connect-button" class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg shadow hover:bg-blue-700 transition duration-300">
+                    1. Mit AtmoTube verbinden
+                </button>
+                <button id="start-button" class="w-full bg-green-600 text-white font-bold py-3 px-4 rounded-lg shadow hover:bg-green-700 transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                    2. Messung starten
+                </button>
+                <button id="stop-button" class="w-full bg-red-600 text-white font-bold py-3 px-4 rounded-lg shadow hover:bg-red-700 transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                    3. Messung stoppen & Speichern
+                </button>
+            </div>
+
+            <!-- Status-Text für laufende Messung -->
+            <div id="running-text-container" class="mt-6 text-center hidden">
+                <p class="text-xl font-semibold text-green-700 is-measuring">
+                    Messung läuft...
+                </p>
+                <p class="text-gray-500">Daten werden gesammelt.</p>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // --- WICHTIG: BITTE ANPASSEN! ---
+        // Ersetze diese Platzhalter mit den echten UUIDs deines AtmoTube.
+        // Du findest sie mit einer App wie "nRF Connect for Mobile".
+        // const ATOMTUBE_SERVICE_UUID = 'dein-service-uuid-hier'; // z.B. '0000xxxx-0000-1000-8000-00805f9b34fb'
+        // const ATOMTUBE_DATA_CHAR_UUID = 'dein-characteristic-uuid-hier'; // z.B. '0000yyyy-0000-1000-8000-00805f9b34fb'
+        
+        // --- UUIDs basierend auf der AtmoTube-Dokumentation ---
+        const ATOMTUBE_SERVICE_UUID = '0000aaaa-5975-4872-6E4D-69636861656C';
+        const PM_CHAR_UUID = '0000aa01-5975-4872-6E4D-69636861656C';
+        const VOC_CO2_CHAR_UUID = '0000aa02-5975-4872-6E4D-69636861656C';
+        const TEMP_HUM_CHAR_UUID = '0000aa03-5975-4872-6E4D-69636861656C';
+        const PRESSURE_CHAR_UUID = '0000aa04-5975-4872-6E4D-69636861656C';
+        // --- ENDE ANPASSUNG ---
+
+        // DOM-Elemente
+        const connectButton = document.getElementById('connect-button');
+        const startButton = document.getElementById('start-button');
+        const stopButton = document.getElementById('stop-button');
+        const statusText = document.getElementById('status-text');
+        const runningTextContainer = document.getElementById('running-text-container');
+
+        // Globale Variablen
+        let bleDevice;
+        // let dataCharacteristic; // Ersetzt durch spezifische Characteristics
+        let pmCharacteristic;
+        let vocCo2Characteristic;
+        let tempHumCharacteristic;
+        let pressureCharacteristic;
+
+        let csvContent = "";
+        let isMeasuring = false;
+        let loggingInterval; // Für das periodische Speichern
+
+        // Objekt zur Speicherung des letzten bekannten Zustands
+        let currentAtmoTubeData = {
+          pm1: null,
+          pm25: null,
+          pm10: null,
+          voc: null,
+          co2: null,
+          temp: null,
+          hum: null,
+          pressure: null
+        };
+
+        // 1. Mit Gerät verbinden
+        connectButton.onclick = async () => {
+            /* Veralteter Check entfernt
+            if (ATOMTUBE_SERVICE_UUID === 'dein-service-uuid-hier') {
+                alert('Fehler: Bitte passe die UUIDs im HTML-Code an (Zeile 80-81).');
+                return;
+            }
+            */
+
+            try {
+                statusText.innerText = 'Suche Gerät...';
+                
+                // Gerätesuche über Web Bluetooth API
+                bleDevice = await navigator.bluetooth.requestDevice({
+                    // Filtere nach dem Namen ODER dem Service
+                    filters: [{ namePrefix: 'AtmoTube' }], // Versucht, Geräte mit Namen "AtmoTube" zu finden
+                    optionalServices: [ATOMTUBE_SERVICE_UUID] // Fordert Zugriff auf den Service an
+                });
+
+                statusText.innerText = 'Verbinde mit GATT-Server...';
+                const server = await bleDevice.gatt.connect();
+
+                statusText.innerText = 'Hole Service...';
+                const service = await server.getPrimaryService(ATOMTUBE_SERVICE_UUID);
+
+                statusText.innerText = 'Hole Characteristics...';
+                // Hole alle Characteristics auf einmal
+                pmCharacteristic = await service.getCharacteristic(PM_CHAR_UUID);
+                vocCo2Characteristic = await service.getCharacteristic(VOC_CO2_CHAR_UUID);
+                tempHumCharacteristic = await service.getCharacteristic(TEMP_HUM_CHAR_UUID);
+                pressureCharacteristic = await service.getCharacteristic(PRESSURE_CHAR_UUID);
+
+                statusText.innerText = `Verbunden mit ${bleDevice.name}`;
+                connectButton.disabled = true;
+                startButton.disabled = false;
+                
+                // Handle plötzliche Trennung
+                bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
+
+            } catch (error) {
+                console.error('Verbindungsfehler:', error);
+                statusText.innerText = `Fehler: ${error.message}`;
+            }
+        };
+
+        // 2. Messung starten
+        startButton.onclick = async () => {
+            try {
+                isMeasuring = true;
+                // CSV-Header mit allen Werten
+                csvContent = 'Timestamp,PM1,PM2.5,PM10,VOC,CO2,Temperatur,Luftfeuchtigkeit,Luftdruck\n'; // CSV-Header
+                statusText.innerText = 'Starte Notifications...';
+
+                // Starte Notifications (das Gerät sendet uns jetzt Daten)
+                // await dataCharacteristic.startNotifications();
+                // dataCharacteristic.addEventListener('characteristicvaluechanged', handleData);
+                
+                // Starte Notifications für alle Characteristics
+                await pmCharacteristic.startNotifications();
+                pmCharacteristic.addEventListener('characteristicvaluechanged', handlePmData);
+
+                await vocCo2Characteristic.startNotifications();
+                vocCo2Characteristic.addEventListener('characteristicvaluechanged', handleVocCo2Data);
+
+                await tempHumCharacteristic.startNotifications();
+                tempHumCharacteristic.addEventListener('characteristicvaluechanged', handleTempHumData);
+
+                await pressureCharacteristic.startNotifications();
+                pressureCharacteristic.addEventListener('characteristicvaluechanged', handlePressureData);
+
+                // Starte das Intervall-Logging (z.B. alle 5 Sekunden)
+                clearInterval(loggingInterval); // Nur zur Sicherheit
+                loggingInterval = setInterval(writeCsvRow, 5000); // 5000ms = 5 Sekunden
+
+                // UI aktualisieren
+                runningTextContainer.classList.remove('hidden');
+                startButton.disabled = true;
+                stopButton.disabled = false;
+                statusText.innerText = `Messung läuft...`;
+
+            } catch (error) {
+                console.error('Fehler beim Start:', error);
+                statusText.innerText = `Start-Fehler: ${error.message}`;
+            }
+        };
+
+        // 3. Messung stoppen
+        stopButton.onclick = async () => {
+            try {
+                isMeasuring = false;
+                statusText.innerText = 'Stoppe Messung...';
+
+                // Stoppe Intervall
+                clearInterval(loggingInterval);
+
+                // Stoppe Notifications
+                // await dataCharacteristic.stopNotifications();
+                // dataCharacteristic.removeEventListener('characteristicvaluechanged', handleData);
+                
+                // Stoppe alle Notifications
+                if (pmCharacteristic) {
+                  await pmCharacteristic.stopNotifications();
+                  pmCharacteristic.removeEventListener('characteristicvaluechanged', handlePmData);
+                }
+                if (vocCo2Characteristic) {
+                  await vocCo2Characteristic.stopNotifications();
+                  vocCo2Characteristic.removeEventListener('characteristicvaluechanged', handleVocCo2Data);
+                }
+                if (tempHumCharacteristic) {
+                  await tempHumCharacteristic.stopNotifications();
+                  tempHumCharacteristic.removeEventListener('characteristicvaluechanged', handleTempHumData);
+                }
+                if (pressureCharacteristic) {
+                  await pressureCharacteristic.stopNotifications();
+                  pressureCharacteristic.removeEventListener('characteristicvaluechanged', handlePressureData);
+                }
+                
+                // UI aktualisieren
+                runningTextContainer.classList.add('hidden');
+                startButton.disabled = false;
+                stopButton.disabled = true;
+                statusText.innerText = `Verbunden mit ${bleDevice.name}`;
+
+                // CSV herunterladen
+                downloadCSV();
+                
+                // Datenobjekt zurücksetzen für die nächste Messung
+                currentAtmoTubeData = { pm1: null, pm25: null, pm10: null, voc: null, co2: null, temp: null, hum: null, pressure: null };
+
+            } catch (error)
+            {
+                console.error('Fehler beim Stoppen:', error);
+                statusText.innerText = `Stopp-Fehler: ${error.message}`;
+            }
+        };
+
+        // --- NEUE DATEN-HANDLER (Spezifisch für AtmoTube) ---
+
+        // Daten-Handler (wird bei jedem neuen Wert aufgerufen)
+        /* ALTE FUNKTION:
+        function handleData(event) {
+            const value = event.target.value; // Dies ist ein DataView
+            
+            // --- WICHTIG: DATEN PARSEN ---
+            // Dies ist ein BEISPIEL. Du musst wissen, wie AtmoTube seine Daten sendet.
+            // Hier lesen wir nur das erste Byte als einfache Zahl.
+            // Ersetze dies durch deine korrekte Parsing-Logik (z.B. getFloat32, getUint16 etc.)
+            const parsedValue = value.getUint8(0); 
+            // -----------------------------
+
+            const timestamp = new Date().toISOString();
+            const csvRow = `${timestamp},${parsedValue}\n`;
+            
+            console.log('Neuer Wert:', csvRow);
+            csvContent += csvRow;
+        }
+        */
+
+        // Handler für PM1, PM2.5, PM10 (12 Bytes: 3x float)
+        function handlePmData(event) {
+          const value = event.target.value; // DataView
+          if (value.byteLength >= 12) {
+            // true = Little Endian (gemäß Doku)
+            currentAtmoTubeData.pm1 = value.getFloat32(0, true).toFixed(2);
+            currentAtmoTubeData.pm25 = value.getFloat32(4, true).toFixed(2);
+            currentAtmoTubeData.pm10 = value.getFloat32(8, true).toFixed(2);
+          }
+        }
+
+        // Handler für VOC und CO2 (6 Bytes: 1x float, 1x uint16)
+        function handleVocCo2Data(event) {
+          const value = event.target.value;
+          if (value.byteLength >= 6) {
+            currentAtmoTubeData.voc = value.getFloat32(0, true).toFixed(2);
+            currentAtmoTubeData.co2 = value.getUint16(4, true);
+          }
+        }
+
+        // Handler für Temperatur und Luftfeuchtigkeit (8 Bytes: 2x float)
+        function handleTempHumData(event) {
+          const value = event.target.value;
+          if (value.byteLength >= 8) {
+            currentAtmoTubeData.temp = value.getFloat32(0, true).toFixed(1);
+            currentAtmoTubeData.hum = value.getFloat32(4, true).toFixed(1);
+          }
+        }
+
+        // Handler für Luftdruck (4 Bytes: 1x float)
+        function handlePressureData(event) {
+          const value = event.target.value;
+          if (value.byteLength >= 4) {
+            currentAtmoTubeData.pressure = value.getFloat32(0, true).toFixed(2);
+          }
+        }
+
+
+        // --- NEUE FUNKTION: Schreibt eine Zeile in die CSV ---
+        function writeCsvRow() {
+          if (!isMeasuring) return; // Nicht schreiben, wenn Messung gestoppt wurde
+          
+          const timestamp = new Date().toISOString();
+          
+          // ?? 'N/A' fängt den Fall ab, dass ein Wert noch nicht empfangen wurde
+          const row = [
+            timestamp,
+            `${currentAtmoTubeData.pm1 ?? 'N/A'}`,
+            `${currentAtmoTubeData.pm25 ?? 'N/A'}`,
+            `${currentAtmsoTubeData.pm10 ?? 'N/A'}`,
+            `${currentAtmoTubeData.voc ?? 'N/A'}`,
+            `${currentAtmoTubeData.co2 ?? 'N/A'}`,
+            `${currentAtmoTubeData.temp ?? 'N/A'}`,
+            `${currentAtmoTubeData.hum ?? 'N/A'}`,
+            `${currentAtmoTubeData.pressure ?? 'N/A'}`
+          ].join(',');
+
+          csvContent += row + '\n';
+          console.log('CSV-Zeile geschrieben:', row);
+        }
+
+
+        // CSV-Download-Funktion
+        function downloadCSV() {
+            const header = 'Timestamp,PM1,PM2.5,PM10,VOC,CO2,Temperatur,Luftfeuchtigkeit,Luftdruck\n';
+            if (csvContent === "" || csvContent === header) {
+                statusText.innerText = "Keine Daten zum Speichern vorhanden.";
+                return;
+            }
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            
+            // Erstellt einen einzigartigen Dateinamen
+            const filename = `atmotube_messung_${new Date().toISOString().replace(/:/g, '-')}.csv`;
+
+            link.setAttribute('href', url);
+            link.setAttribute('download', filename);
+            link.style.visibility = 'hidden';
+            
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            statusText.innerText = `CSV-Datei '${filename}' gespeichert.`;
+            // CSV-Inhalt leeren, damit die nächste Messung sauber ist
+            csvContent = "";
+        }
+
+        // Trennungs-Handler
+        function onDisconnected() {
+            statusText.innerText = 'Verbindung verloren. Bitte neu verbinden.';
+            connectButton.disabled = false;
+            startButton.disabled = true;
+            stopButton.disabled = true;
+            runningTextContainer.classList.add('hidden');
+            isMeasuring = false;
+        }
+
+    </script>
+</body>
+</html>
