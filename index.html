@@ -117,12 +117,23 @@
                 //
                 // ÄNDERUNG (Plan B): Wir filtern wieder nach dem Namen, da der Service
                 // anscheinend nicht advertised wird.
+                //
+                // ÄNDERUNG (Plan C): Wir entfernen alle Filter und zeigen ALLE Geräte an.
                 bleDevice = await navigator.bluetooth.requestDevice({
+                    /* Plan A & B (filters) haben nicht funktioniert:
                     filters: [{
-                        // services: [ATOMTUBE_SERVICE_UUID] // Plan A (funktioniert nicht)
-                        namePrefix: 'AtmoTube' // Plan B: Suche nach dem Gerätenamen
+                        // services: [ATOMTUBE_SERVICE_UUID] 
+                        namePrefix: 'AtmoTube' 
                     }],
-                    optionalServices: [ATOMTUBE_SERVICE_UUID] // WICHTIG: Fordert Zugriff auf den Service an
+                    */
+
+                    // --- PLAN C: Alle Geräte akzeptieren ---
+                    // Zeigt eine Liste aller Bluetooth-Geräte in der Nähe.
+                    // Du musst dein AtmoTube in der Liste manuell erkennen!
+                    acceptAllDevices: true,
+                    
+                    // WICHTIG: Fordert Zugriff auf den Service an, nachdem wir uns verbinden
+                    optionalServices: [ATOMTUBE_SERVICE_UUID] 
                 });
 
                 statusText.innerText = 'Verbinde mit GATT-Server...';
