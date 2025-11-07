@@ -113,25 +113,30 @@
                 
                 // Gerätesuche über Web Bluetooth API
                 //
-                // --- FINALE VERSION (Zurück zu Plan A) ---
-                // Wir filtern jetzt *nur* nach der Service-UUID.
-                // Das ist der korrekte Weg, um *nur* das BLE-Gerät zu finden,
-                // das die Sensordaten auch wirklich bereitstellt.
+                // --- FINALE VERSION (Zurück zu Plan C) ---
+                // Plan A (nach Service filtern) schlägt fehl, da das Gerät
+                // seinen Service offenbar nicht bewirbt (trotz GPS/Standort).
                 //
-                // WICHTIG: Damit dies funktioniert, muss auf dem Handy
-                // "Standort" (GPS) aktiviert sein UND Chrome muss die
-                // "Standort"-Berechtigung haben!
+                // Wir kehren zu `acceptAllDevices` zurück, aber mit einer
+                // NEUEN ANWEISUNG:
+                //
+                // In der Liste, die erscheint:
+                // 1. NICHT "ATMOTUBE" auswählen (das ist der Classic-Zwilling).
+                // 2. WÄHLEN SIE "Unbekanntes Gerät", "Unbenannt" oder das Gerät,
+                //    das nur als MAC-Adresse (z.B. AA:BB:CC:11:22:33) erscheint.
+                //    DAS ist das korrekte BLE-Gerät!
                 
                 bleDevice = await navigator.bluetooth.requestDevice({
-                    // Plan C (acceptAllDevices) war eine Sackgasse,
-                    // da er das "Classic"-Gerät statt des BLE-Geräts findet.
-                    // acceptAllDevices: true, 
-                    
+                    /* Plan A (filters) war eine Sackgasse.
                     filters: [{
                         services: [ATOMTUBE_SERVICE_UUID]
                     }],
+                    */
+
+                    // --- PLAN C (Erneuter Versuch) ---
+                    acceptAllDevices: true,
                     
-                    // Wir fordern den Service trotzdem an (notwendig)
+                    // Wir fordern den Service an, den wir nach der Verbindung finden wollen
                     optionalServices: [ATOMTUBE_SERVICE_UUID] 
                 });
 
