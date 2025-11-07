@@ -112,27 +112,26 @@
                 statusText.innerText = 'Suche Gerät...';
                 
                 // Gerätesuche über Web Bluetooth API
-                // GEÄNDERT: Filtert jetzt nach der Service-UUID statt dem Namen.
-                // Das ist robuster und öffnet den Auswahl-Dialog (die "Gerätesuche").
                 //
-                // ÄNDERUNG (Plan B): Wir filtern wieder nach dem Namen, da der Service
-                // anscheinend nicht advertised wird.
+                // --- FINALE VERSION (Zurück zu Plan A) ---
+                // Wir filtern jetzt *nur* nach der Service-UUID.
+                // Das ist der korrekte Weg, um *nur* das BLE-Gerät zu finden,
+                // das die Sensordaten auch wirklich bereitstellt.
                 //
-                // ÄNDERUNG (Plan C): Wir entfernen alle Filter und zeigen ALLE Geräte an.
+                // WICHTIG: Damit dies funktioniert, muss auf dem Handy
+                // "Standort" (GPS) aktiviert sein UND Chrome muss die
+                // "Standort"-Berechtigung haben!
+                
                 bleDevice = await navigator.bluetooth.requestDevice({
-                    /* Plan A & B (filters) haben nicht funktioniert:
-                    filters: [{
-                        // services: [ATOMTUBE_SERVICE_UUID] 
-                        namePrefix: 'AtmoTube' 
-                    }],
-                    */
-
-                    // --- PLAN C: Alle Geräte akzeptieren ---
-                    // Zeigt eine Liste aller Bluetooth-Geräte in der Nähe.
-                    // Du musst dein AtmoTube in der Liste manuell erkennen!
-                    acceptAllDevices: true,
+                    // Plan C (acceptAllDevices) war eine Sackgasse,
+                    // da er das "Classic"-Gerät statt des BLE-Geräts findet.
+                    // acceptAllDevices: true, 
                     
-                    // WICHTIG: Fordert Zugriff auf den Service an, nachdem wir uns verbinden
+                    filters: [{
+                        services: [ATOMTUBE_SERVICE_UUID]
+                    }],
+                    
+                    // Wir fordern den Service trotzdem an (notwendig)
                     optionalServices: [ATOMTUBE_SERVICE_UUID] 
                 });
 
