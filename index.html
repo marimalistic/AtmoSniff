@@ -114,14 +114,23 @@
                 statusText.innerText = 'Suche Gerät...';
                 
                 // Gerätesuche über Web Bluetooth API
-                // Wir filtern jetzt nach der korrekten PRO-Service-UUID.
                 // WICHTIG: "Standort" (GPS) muss auf dem Handy aktiviert sein!
                 
                 bleDevice = await navigator.bluetooth.requestDevice({
-                    filters: [{
-                        services: [ATOMTUBE_PRO_SERVICE_UUID]
-                    }],
-                    // optionalServices: [ATOMTUBE_PRO_SERVICE_UUID] // Nicht nötig, da es in filters ist
+                    // filters: [{
+                    //    services: [ATOMTUBE_PRO_SERVICE_UUID]
+                    // }]
+                    // Der Filter (Plan A) schlägt fehl, da das "normale PRO" (Modell 1)
+                    // seinen Dienst offenbar nicht bewirbt, um Strom zu sparen.
+                    
+                    // Wir gehen zurück zu Plan C (alle Geräte akzeptieren), um das Gerät
+                    // (z.B. als "ATMOTUBE") in der Liste zu finden.
+                    acceptAllDevices: true,
+                    
+                    // ABER (und das ist der entscheidende Unterschied zu früher):
+                    // Wir fordern den korrekten PRO-Dienst (`...0001...`) an.
+                    // Das sollte den 'No Services matching...'-Fehler beheben.
+                    optionalServices: [ATOMTUBE_PRO_SERVICE_UUID]
                 });
 
                 statusText.innerText = 'Verbinde mit GATT-Server...';
