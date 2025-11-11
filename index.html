@@ -21,7 +21,7 @@
         <div class="flex items-center justify-center mb-6">
             <!-- Platzhalter-Logo oder Icon -->
             <svg class="w-12 h-12 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-            <h1 class="text-3xl font-bold text-white ml-4">AtmoTube PRO 1</h1>
+            <h1 class="text-3xl font-bold text-white ml-4">AtmoTube PRO</h1>
         </div>
 
         <p class="text-center text-lg text-gray-400 mb-8">CSV-Datenlogger für AtmoTube PRO</p>
@@ -116,20 +116,19 @@
                 // Gerätesuche über Web Bluetooth API
                 // WICHTIG: "Standort" (GPS) muss auf dem Handy aktiviert sein!
                 
+                // --- FINALE LÖSUNG (PLAN E) ---
+                // Dank Ihrer Beobachtung filtern wir jetzt gezielt nach dem
+                // korrekten BLE-Namen "Atmotube PRO", den die offizielle App anzeigt.
+                // Das blendet den falschen "Classic"-Zwilling ("ATMOTUBE") aus.
+                
                 bleDevice = await navigator.bluetooth.requestDevice({
-                    // filters: [{
-                    //    services: [ATOMTUBE_PRO_SERVICE_UUID]
-                    // }]
-                    // Der Filter (Plan A) schlägt fehl, da das "normale PRO" (Modell 1)
-                    // seinen Dienst offenbar nicht bewirbt, um Strom zu sparen.
+                    // acceptAllDevices: true, // Nicht mehr nötig, wir filtern gezielt
+                    filters: [{
+                       namePrefix: 'Atmotube PRO' 
+                    }],
                     
-                    // Wir gehen zurück zu Plan C (alle Geräte akzeptieren), um das Gerät
-                    // (z.B. als "ATMOTUBE") in der Liste zu finden.
-                    acceptAllDevices: true,
-                    
-                    // ABER (und das ist der entscheidende Unterschied zu früher):
-                    // Wir fordern den korrekten PRO-Dienst (`...0001...`) an.
-                    // Das sollte den 'No Services matching...'-Fehler beheben.
+                    // Wir fordern den korrekten PRO-Dienst (`...0001...`) an,
+                    // den wir nach der Verbindung nutzen wollen.
                     optionalServices: [ATOMTUBE_PRO_SERVICE_UUID]
                 });
 
